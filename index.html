@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>MedGuard AI Detector</title>
+    <script type="importmap">
+    { "imports": { "@google/generative-ai": "https://esm.run/@google/generative-ai" } } 
+    </script>
+
+    <style>
+        body {
+            background-color: #1a0524;
+            color: #f0f0f0;
+            text-align: center;
+            font-family: sans-serif;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #ff3333;
+        }
+
+        textarea {
+            background-color: #2a0a3a;
+            color: white;
+            border: 1px solid #5a1a7a;
+            padding: 10px;
+            border-radius: 5px;
+            width: 100%;
+            max-width: 500px;
+        }
+
+        button {
+            background-color: #6a0dad;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            cursor: pointer;
+            border-radius: 5px;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+
+        #resultArea {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #5a1a7a;
+            background: #2a0a3a;
+            border-radius: 8px;
+            display: none;
+            text-align: left;
+            max-width: 500px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>MEDGUARD AI</h1>
+    <p>Paste the raw patient intake below:</p>
+
+    <textarea id="patientText" rows="10" placeholder="e.g. Patient has chest pain and penicillin allergy..."></textarea>
+    <br>
+    <button onclick="analyzePatientRisk()">Analyze Risk</button>
+
+    <div id="resultArea">
+        <h3>Triage Result:</h3>
+        <p id="riskLevel"></p>
+    </div>
+
+    <script type="module">
+        import { GoogleGenerativeAI } from "@google/generative-ai";
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        // 1. FIREBASE SETUP
+        const firebaseConfig = {
+            apiKey: "AIzaSyD8ZYVCVEzyFYgISV_Ww-mCuTWTf1mR36s",
+            authDomain: "med-guard-ai-62634.firebaseapp.com",
+            projectId: "med-guard-ai-62634",
+            storageBucket: "med-guard-ai-62634.firebasestorage.app",
+            messagingSenderId: "853600391813",
+            appId: "1:853600391813:web:8a0e18b8f9cc4c1690cfec"
+        };
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // 2. GEMINI SETUP
+        const API_KEY = "AIzaSyCJpyBteKneSsOF-ANXWKDB_l1mxzudbn8";
+        const genAI = new GoogleGenerativeAI(API_KEY);
+
+        // 3. THE MAIN FUNCTION
+        window.analyzePatientRisk = async () => {
+            const rawText = document.getElementById("patientText").value;
+            const resultArea = document.getElementById("resultArea");
+            const riskDisplay = document.getElementById("riskLevel");
+
+            if (!rawText) return alert("Please enter notes!");
+
+            resultArea.style.display = "block";
+            riskDisplay.innerText = "Gemini is analyzing...";
+
+            try {
+                const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+                const prompt = `Analyze these medical notes: "${rawText}". Give a Risk Level (Low/Med/High) and a 1-sentence reason.`;
+
+                const result = await model.generateContent(prompt);
+                const response = await result.response;
+                const aiText = response.text();
+
+                // Show on screen
+                riskDisplay.innerText = aiText;
+
+                // Save to Firebase
+                await addDoc(collection(db, "patients"), {
+                    text: rawText,
+                    triage: aiText,
+                    timestamp: new Date()
+                });
+                console.log("Saved to Firebase!");
+
+            } catch (error) {
+                riskDisplay.innerText = "Error: " + error.message;
+            }
+        };
+    </script>
+</body>
+
+</html>
